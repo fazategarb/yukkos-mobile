@@ -57,16 +57,19 @@ export default function HomeScreen() {
         
         {/* 1. Header Profil */}
         <View style={styles.header}>
-          <View style={styles.avatarRow}>
-            <Image
-              source={{ uri: 'https://picsum.photos/100' }} 
+          <TouchableOpacity 
+            style={styles.avatarRow} 
+            onPress={() => router.push('/auth/login')}
+          >
+            <Image 
+              source={{ uri: 'https://picsum.photos/id/64/100/100' }} 
               style={styles.avatarImage} 
             />
             <View>
               <Text style={styles.greetingText}>Halo,</Text>
               <Text style={styles.profileName}>Fanny</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* 2. Search Bar & Filter Button */}
