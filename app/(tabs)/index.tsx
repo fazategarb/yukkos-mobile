@@ -67,7 +67,7 @@ export default function HomeScreen() {
             />
             <View>
               <Text style={styles.greetingText}>Halo,</Text>
-              <Text style={styles.profileName}>Fanny</Text>
+              <Text style={styles.profileName}>Faza</Text>
             </View>
           </TouchableOpacity>
         </View>

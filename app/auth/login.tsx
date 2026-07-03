@@ -1,6 +1,9 @@
+import { isAxiosError } from 'axios';
 import { Stack, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useState } from 'react';
-import { ActivityIndicator, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import api from '../../constants/api'; // Pastikan path mengarah ke file api.ts Anda
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -9,13 +12,47 @@ export default function LoginScreen() {
   const [secureText, setSecureText] = useState(true);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Email dan password tidak boleh kosong!');
+      return;
+    }
+
     setLoading(true);
-    // TODO: Integrasikan dengan endpoint Auth NestJS Anda nanti
-    setTimeout(() => {
+    try {
+      const response = await api.post('/v1/auth/login', {
+        email: email,
+        password: password,
+      });
+
+      if (response.data && response.data.success) {
+        const token = response.data.data.access_token; // Mengambil dari response.data.data
+        const role = response.data.data.role;
+
+        if (token) {
+          await SecureStore.setItemAsync('user_token', token);
+          
+          Alert.alert('Sukses', `Selamat Datang! Anda masuk sebagai ${role}`);
+          router.replace('/(tabs)'); // Alihkan ke halaman utama
+        } else {
+          Alert.alert('Error', 'Format token tidak ditemukan di dalam response data.');
+        }
+      } else {
+        Alert.alert('Error', 'Login gagal berdasarkan respon server.');
+      }
+
+    } catch (error) {
+      console.log(error);
+      if (isAxiosError(error) && error.response) {
+        // Ambil pesan error bawaan dari NestJS HttpException
+        const errorMessage = error.response.data.message || 'Email atau password salah.';
+        Alert.alert('Login Gagal', Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
+      } else {
+        Alert.alert('Error', 'Tidak dapat terhubung ke server backend.');
+      }
+    } finally {
       setLoading(false);
-      router.replace('/(tabs)'); // Masuk ke Home setelah sukses login
-    }, 1500);
+    }
   };
 
   return (

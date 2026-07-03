@@ -1,13 +1,50 @@
+import { isAxiosError } from 'axios'; // Gunakan named export sesuai standar ESLint kita sebelumnya
 import { Stack, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import api from '../../constants/api'; // Pastikan path ke api.ts sudah benar
 
 export default function RegisterScreen() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
+  const handleRegister = async () => {
+    // Validasi input awal
+    if (!name || !email || !password) {
+      Alert.alert('Error', 'Semua kolom pendaftaran wajib diisi!');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Tembak endpoint register yang sudah terdaftar di NestJS
+      const response = await api.post('/v1/auth/register', {
+        name: name,
+        email: email,
+        password: password,
+      });
+
+      // Jika backend teman Anda mengembalikan data user atau status sukses
+      if (response.status === 201 || response.status === 200) {
+        Alert.alert('Sukses', 'Akun Yukkos Anda berhasil dibuat! Silakan coba login.');
+        router.replace('/auth/login'); // Alihkan ke halaman login
+      }
+    } catch (error) {
+      console.log(error);
+      if (isAxiosError(error) && error.response) {
+        const errorMessage = error.response.data.message || 'Gagal mendaftarkan akun.';
+        Alert.alert('Pendaftaran Gagal', Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
+      } else {
+        Alert.alert('Error', 'Tidak dapat terhubung ke server backend.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -52,8 +89,8 @@ export default function RegisterScreen() {
           />
         </View>
 
-        <TouchableOpacity style={[styles.primaryButton, { marginTop: 30 }]}>
-          <Text style={styles.buttonText}>Daftar</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
+          {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Daftar</Text>}
         </TouchableOpacity>
 
         <View style={styles.footerRow}>
