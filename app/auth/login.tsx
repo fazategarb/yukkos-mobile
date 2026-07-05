@@ -13,42 +13,47 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Email dan password tidak boleh kosong!');
+    // Validasi Input Kosong
+    if (!email.trim() || !password) {
+      Alert.alert('Validasi Gagal', 'Email dan password tidak boleh kosong!');
+      return;
+    }
+
+    // Validasi Format Email sebelum ditembak ke LoginUserDto
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Validasi Gagal', 'Format email yang Anda masukkan salah!');
       return;
     }
 
     setLoading(true);
     try {
       const response = await api.post('/v1/auth/login', {
-        email: email,
+        email: email.trim().toLowerCase(),
         password: password,
       });
 
       if (response.data && response.data.success) {
-        const token = response.data.data.access_token; // Mengambil dari response.data.data
+        const token = response.data.data.access_token;
         const role = response.data.data.role;
 
         if (token) {
+          // Menyimpan token secara aman di device
           await SecureStore.setItemAsync('user_token', token);
           
           Alert.alert('Sukses', `Selamat Datang! Anda masuk sebagai ${role}`);
-          router.replace('/(tabs)'); // Alihkan ke halaman utama
+          router.replace('/(tabs)');
         } else {
-          Alert.alert('Error', 'Format token tidak ditemukan di dalam response data.');
+          Alert.alert('Error', 'Format token tidak dikenali oleh sistem.');
         }
-      } else {
-        Alert.alert('Error', 'Login gagal berdasarkan respon server.');
       }
-
     } catch (error) {
       console.log(error);
       if (isAxiosError(error) && error.response) {
-        // Ambil pesan error bawaan dari NestJS HttpException
         const errorMessage = error.response.data.message || 'Email atau password salah.';
         Alert.alert('Login Gagal', Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
       } else {
-        Alert.alert('Error', 'Tidak dapat terhubung ke server backend.');
+        Alert.alert('Error', 'Gagal terhubung ke server backend.');
       }
     } finally {
       setLoading(false);

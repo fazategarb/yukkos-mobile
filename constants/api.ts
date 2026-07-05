@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 // Ganti dengan IP lokal Wi-Fi komputer Anda agar bisa diakses oleh HP fisik/emulator
 // Contoh: 'http://192.168.1.50:3000' (Jangan pakai localhost jika test di HP fisik)
-export const API_URL = 'http://192.168.1.7:3000'; 
+export const API_URL = process.env.EXPO_PUBLIC_API_URL; 
 
 const api = create({
   baseURL: API_URL,

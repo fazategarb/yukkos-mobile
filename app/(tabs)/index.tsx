@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { jwtDecode, JwtPayload } from 'jwt-decode';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -13,12 +15,67 @@ interface MobileListingResponseDto {
   status: 'AVAILABLE' | 'FULL' | 'FEW_LEFT' | string;
 }
 
+// Interface kustom untuk menangkap properti dari payload token JWT backend
+interface CustomJwtPayload extends JwtPayload {
+  sub?: string;
+  email?: string;
+  name?: string;
+  role?: string;
+}
+
 export default function HomeScreen() {
   const [listings, setListings] = useState<MobileListingResponseDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('Pengguna');
 
   const router = useRouter();
+
+  // Fungsi untuk memuat data nama pengguna dari token lokal
+  const loadUserData = async () => {
+    try {
+      const token = await SecureStore.getItemAsync('user_token');
+      if (token) {
+        // Dekode token menggunakan interface kustom agar type-safe
+        const decoded = jwtDecode<CustomJwtPayload>(token);
+        
+        // Jika backend mengirimkan property 'name', gunakan langsung
+        if (decoded.name) {
+          setUserName(decoded.name);
+        } else if (decoded.email) {
+          // Fallback: Mengambil potongan email sebelum '@' jika nama tidak ada di token
+          const fallbackName = decoded.email.split('@')[0];
+          setUserName(fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1));
+        }
+      }
+    } catch (err) {
+      console.error('Gagal mendekode token:', err);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Konfirmasi Keluar',
+      'Apakah Anda yakin ingin keluar dari akun Yukkos?',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Keluar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Menghapus token dari SecureStore secara permanen
+              await SecureStore.deleteItemAsync('user_token');
+              router.replace('/auth/login');
+            } catch (err) {
+              console.log('Error saat logout:', err);
+              Alert.alert('Error', 'Gagal melakukan logout, coba lagi.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -39,6 +96,8 @@ export default function HomeScreen() {
       }
     };
 
+    // Menjalankan inisialisasi data user dan produk kos bersamaan
+    loadUserData();
     fetchListings();
   }, []);
 
@@ -55,35 +114,42 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         
-        {/* 1. Header Profil */}
+        {/* 1. Header Profil Responsif */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.avatarRow} 
-            onPress={() => router.push('/auth/login')}
-          >
-            <Image 
-              source={{ uri: 'https://picsum.photos/id/64/100/100' }} 
-              style={styles.avatarImage} 
-            />
-            <View>
-              <Text style={styles.greetingText}>Halo,</Text>
-              <Text style={styles.profileName}>Faza</Text>
+          <View style={styles.avatarRow}>
+            
+            {/* Kelompok Kiri: Avatar + Teks Nama Dinamis */}
+            <View style={styles.leftProfileGroup}>
+              <Image 
+                source={{ uri: 'https://picsum.photos/id/64/100/100' }} 
+                style={styles.avatarImage} 
+              />
+              <View style={styles.textGroup}>
+                <Text style={styles.greetingText}>Halo,</Text>
+                <Text style={styles.profileName} numberOfLines={1}>{userName}</Text>
+              </View>
             </View>
-          </TouchableOpacity>
+            
+            {/* Kelompok Kanan: Tombol Logout Kompak */}
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Text style={styles.logoutText}>Keluar</Text>
+            </TouchableOpacity>
+
+          </View>
         </View>
 
         {/* 2. Search Bar & Filter Button */}
         <View style={styles.searchContainer}>
           <TouchableOpacity 
             style={styles.searchBar} 
-            onPress={() => router.push('/explore')} // Mengarahkan ke tab explore
+            onPress={() => router.push('/explore')}
           >
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput 
               placeholder="Cari Kost" 
               placeholderTextColor="#888888"
               style={styles.searchInput}
-              editable={false} // Supaya tidak memunculkan keyboard di home, melainkan berpindah page
+              editable={false}
             />
           </TouchableOpacity>
           <TouchableOpacity style={styles.filterButton}>
@@ -116,7 +182,6 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Kost Terdekat</Text>
           <Text style={styles.locationSub}>📍 Cari Lokasi</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScrollGap}>
-            {/* Dummy Card untuk Layouting */}
             {['Kost A', 'Kost B', 'Kost C'].map((dummy, idx) => (
               <View key={idx} style={styles.cardVertical}>
                 <Image source={{ uri: `https://picsum.photos/id/${idx + 20}/150/150` }} style={styles.verticalCardImage} />
@@ -196,12 +261,18 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F9FA' },
   loadingText: { marginTop: 10, color: '#666666', fontWeight: '500' },
-  header: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 10, backgroundColor: '#F8F9FA' },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarImage: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#CCCCCC' },
-  greetingText: { fontSize: 14, color: '#888888' },
-  profileName: { fontSize: 16, fontWeight: '700', color: '#333333' },
   
+  // Header Layout Responsif
+  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, backgroundColor: '#F8F9FA' },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
+  leftProfileGroup: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 10 },
+  textGroup: { flex: 1 },
+  avatarImage: { width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#CCCCCC' },
+  greetingText: { fontSize: 13, color: '#6B7280' },
+  profileName: { fontSize: 16, fontWeight: 'bold', color: '#1F2937' },
+  logoutButton: { backgroundColor: '#DC2626', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  logoutText: { color: '#FFF', fontWeight: '600', fontSize: 13 },
+
   // Search Styles
   searchContainer: { flexDirection: 'row', paddingHorizontal: 24, marginBottom: 20, gap: 12, alignItems: 'center' },
   searchBar: { flex: 1, flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 12, height: 46, alignItems: 'center', borderWidth: 1, borderColor: '#EAEAEA' },
@@ -253,7 +324,6 @@ const styles = StyleSheet.create({
   ownerTitle: { fontSize: 15, fontWeight: 'bold', color: '#333333', marginBottom: 4 },
   ownerSubtitle: { fontSize: 12, color: '#666666', lineHeight: 16 },
 
-  // Perbaikan typo fontStyle di sini
   emptyText: { color: '#999999', fontStyle: 'italic', textAlign: 'center', marginTop: 20 },
-  errorText: { color: '#E74C3C', fontStyle: 'italic', textAlign: 'center', marginTop: 20 }
+  errorText: { color: '#E74C3C', fontStyle: 'italic', textAlign: 'center', marginTop: 20 },
 });

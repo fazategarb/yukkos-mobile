@@ -12,29 +12,43 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    // Validasi input awal
-    if (!name || !email || !password) {
-      Alert.alert('Error', 'Semua kolom pendaftaran wajib diisi!');
+    // Validasi Kolom Kosong
+    if (!name.trim() || !email.trim() || !password) {
+      Alert.alert('Validasi Gagal', 'Semua kolom pendaftaran wajib diisi!');
+      return;
+    }
+
+    // Validasi Format Email Sederhana
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Validasi Gagal', 'Format email tidak valid!');
+      return;
+    }
+
+    // Validasi minLength: 6 Sesuai RegisterUserDto
+    if (password.length < 6) {
+      Alert.alert('Validasi Gagal', 'Password minimal harus terdiri dari 6 karakter!');
       return;
     }
 
     setLoading(true);
     try {
-      // Tembak endpoint register yang sudah terdaftar di NestJS
+      // Mengirimkan payload sesuai RegisterUserDto, dengan default role TENANT
       const response = await api.post('/v1/auth/register', {
-        name: name,
-        email: email,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
         password: password,
+        role: 'TENANT', // Mengunci role untuk aplikasi mobile pencari kos
       });
 
-      // Jika backend teman Anda mengembalikan data user atau status sukses
       if (response.status === 201 || response.status === 200) {
-        Alert.alert('Sukses', 'Akun Yukkos Anda berhasil dibuat! Silakan coba login.');
-        router.replace('/auth/login'); // Alihkan ke halaman login
+        Alert.alert('Sukses', 'Akun Yukkos Anda berhasil dibuat! Silakan masuk.');
+        router.replace('/auth/login');
       }
     } catch (error) {
       console.log(error);
       if (isAxiosError(error) && error.response) {
+        // Menangkap error handling bawaan NestJS class-validator jika ada yang lolos
         const errorMessage = error.response.data.message || 'Gagal mendaftarkan akun.';
         Alert.alert('Pendaftaran Gagal', Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
       } else {
