@@ -13,6 +13,7 @@ interface MobileListingResponseDto {
   city: string;
   monthlyPrice: number;
   status: 'AVAILABLE' | 'FULL' | 'FEW_LEFT' | string;
+  mainImage?: string;
 }
 
 // Interface kustom untuk menangkap properti dari payload token JWT backend
@@ -182,7 +183,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Kost Terdekat</Text>
           <Text style={styles.locationSub}>📍 Cari Lokasi</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScrollGap}>
-            {['Kost A', 'Kost B', 'Kost C'].map((dummy, idx) => (
+            {['Putra Wijawa Kos', 'Enak Ngekost', 'Senjaya Kos'].map((dummy, idx) => (
               <View key={idx} style={styles.cardVertical}>
                 <Image source={{ uri: `https://picsum.photos/id/${idx + 20}/150/150` }} style={styles.verticalCardImage} />
                 <View style={styles.verticalCardBody}>
@@ -198,7 +199,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Rekomendasi</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/explore')}>
               <Text style={styles.seeAllText}>Lihat Semua</Text>
             </TouchableOpacity>
           </View>
@@ -209,9 +210,17 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>Tidak ada data kos tersedia saat ini.</Text>
           ) : (
             listings.map((item) => (
-              <View key={item.id} style={styles.cardWide}>
+              <TouchableOpacity 
+                key={item.id} 
+                style={styles.cardWide}
+                onPress={() => router.push(`/detail/${item.id}`)}
+                activeOpacity={0.8}
+              >
                 <View style={styles.imagePlaceholder}>
-                  <Image source={{ uri: 'https://picsum.photos/id/43/150/150' }} style={styles.kostImageWide} />
+                  <Image 
+                    source={{ uri: item.mainImage || 'https://picsum.photos/id/43/150/150' }} 
+                    style={styles.kostImageWide} 
+                  />
                   <View style={[
                     styles.statusBadge, 
                     { backgroundColor: item.status === 'AVAILABLE' ? '#2ECC71' : '#E74C3C' }
@@ -240,7 +249,7 @@ export default function HomeScreen() {
                     <Text style={styles.kostRating}>⭐ 5.0</Text>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
