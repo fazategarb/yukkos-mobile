@@ -34,8 +34,8 @@ export default function LoginScreen() {
       });
 
       if (response.data && response.data.success) {
-        const token = response.data.data.access_token;
-        const role = response.data.data.role;
+        const token = response.data.data?.accessToken; 
+        const role = response.data.data?.role || 'User';
 
         if (token) {
           // Menyimpan token secara aman di device
@@ -44,7 +44,7 @@ export default function LoginScreen() {
           Alert.alert('Sukses', `Selamat Datang! Anda masuk sebagai ${role}`);
           router.replace('/(tabs)');
         } else {
-          Alert.alert('Error', 'Format token tidak dikenali oleh sistem.');
+          Alert.alert('Error', 'Format token tidak ditemukan dalam response server.');
         }
       }
     } catch (error) {

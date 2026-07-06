@@ -1,8 +1,6 @@
 import { create } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-// Ganti dengan IP lokal Wi-Fi komputer Anda agar bisa diakses oleh HP fisik/emulator
-// Contoh: 'http://192.168.1.50:3000' (Jangan pakai localhost jika test di HP fisik)
 export const API_URL = process.env.EXPO_PUBLIC_API_URL; 
 
 const api = create({
@@ -14,8 +12,13 @@ const api = create({
 
 // Interceptor: Otomatis selipkan Token JWT ke Header jika User sudah Login
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('user_token');
+  let token = await SecureStore.getItemAsync('user_token');
+  
   if (token && config.headers) {
+    if (token.startsWith('"') && token.endsWith('"')) {
+      token = token.slice(1, -1);
+    }
+    
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

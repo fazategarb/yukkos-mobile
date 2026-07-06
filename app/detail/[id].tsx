@@ -1,19 +1,8 @@
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -25,11 +14,10 @@ interface DetailListingDto {
   monthlyPrice: number;
   status: 'AVAILABLE' | 'FULL' | 'FEW_LEFT' | string;
   description?: string;
-  facilities?: string[]; 
-  mainImage?: string;    
+  facilities?: string[];
+  mainImage?: string;
 }
 
-// Helper untuk ikon emoji berdasarkan teks nama fasilitas dari database
 const getFacilityIcon = (name: string): string => {
   const lowerName = name.toLowerCase();
   if (lowerName.includes('wifi')) return '📶';
@@ -40,21 +28,25 @@ const getFacilityIcon = (name: string): string => {
 };
 
 export default function DetailKostScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams();
   const router = useRouter();
 
   const [listing, setListing] = useState<DetailListingDto | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // State untuk Modal Booking
+  const [bookingModalVisible, setBookingModalVisible] = useState<boolean>(false);
+  const [checkInDate, setCheckInDate] = useState<string>('2026-08-01');
+  const [durationMonths, setDurationMonths] = useState<string>('1');
+  const [isBookingLoading] = useState<boolean>(false);
+
   useEffect(() => {
     const fetchDetailListing = async () => {
       try {
         setLoading(true);
         setError(null);
-        
         const response = await axios.get(`${API_URL}/v1/mobile/listings/${id}`);
-        
         if (response.data && response.data.success) {
           setListing(response.data.data);
         } else {
@@ -72,6 +64,44 @@ export default function DetailKostScreen() {
       fetchDetailListing();
     }
   }, [id]);
+
+  // Fungsi untuk mengirim Request Booking ke API Backend
+  const handleConfirmBooking = async () => {
+  try {
+    // 1. Ambil token murni secara real-time dari storage
+    let token = await SecureStore.getItemAsync('user_token');
+    
+    // Sanitasi tanda kutip ganda jika terlanjur masuk format string JSON
+    if (token && token.startsWith('"') && token.endsWith('"')) {
+      token = token.slice(1, -1);
+    }
+
+    // 2. Susun payload sesuai CreateBookingDto
+    const payload = {
+      listingId: id, // ID Kos dari parameter route expo-router
+      checkInDate: new Date().toISOString(), // Contoh tanggal hari ini format ISO 8601
+      durationMonths: 1 // Pastikan bertipe number murni murni
+    };
+
+    // 3. Tembak API menggunakan Axios polosan dengan Header manual
+    const response = await axios.post(`${API_URL}/v1/tenant/bookings`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` // Masukkan token manual di sini
+      }
+    });
+
+    if (response.status === 201) {
+      Alert.alert('Sukses', 'Pengajuan sewa berhasil dibuat!');
+    }
+  } catch (error) {
+    console.log("Detail Error:", error);
+    if (isAxiosError(error) && error.response) {
+      console.log("Response data dari server:", error.response.data);
+    }
+    Alert.alert('Booking Gagal', 'Periksa log terminal untuk detail error.');
+  }
+};
 
   if (loading) {
     return (
@@ -95,7 +125,6 @@ export default function DetailKostScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header Navigasi */}
       <View style={styles.navbar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.navBack}>
           <Text style={styles.navBackIcon}>⬅️</Text>
@@ -104,13 +133,11 @@ export default function DetailKostScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* 1. GAMBAR UTAMA: Menggunakan mainImage asli dari Cloudinary database */}
         <Image 
           source={{ uri: listing.mainImage || 'https://picsum.photos/id/43/600/400' }} 
           style={styles.coverImage} 
         />
 
-        {/* Info Utama */}
         <View style={styles.infoContainer}>
           <View style={styles.badgeRow}>
             <View style={[
@@ -129,7 +156,6 @@ export default function DetailKostScreen() {
 
           <View style={styles.divider} />
 
-          {/* 2. FASILITAS: Menggunakan properti facilities */}
           <Text style={styles.sectionTitle}>Fasilitas Kamar & Bersama</Text>
           {listing.facilities && listing.facilities.length > 0 ? (
             <View style={styles.facilityGrid}>
@@ -146,7 +172,6 @@ export default function DetailKostScreen() {
 
           <View style={styles.divider} />
 
-          {/* Deskripsi */}
           <Text style={styles.sectionTitle}>Deskripsi Properti</Text>
           <Text style={styles.descriptionText}>
             {listing.description || 'Kos strategis, aman, nyaman, dan dekat dengan fasilitas umum kota.'}
@@ -163,10 +188,68 @@ export default function DetailKostScreen() {
             <Text style={styles.pricePeriod}>/bln</Text>
           </Text>
         </View>
-        <TouchableOpacity style={styles.bookButton} onPress={() => Alert.alert('Sukses', 'Fitur hubungi pemilik kost sedang disiapkan!')}>
-          <Text style={styles.bookButtonText}>Hubungi Pemilik</Text>
+        
+        <TouchableOpacity 
+          style={[styles.bookButton, listing.status === 'FULL' && styles.disabledButton]} 
+          disabled={listing.status === 'FULL'}
+          onPress={() => setBookingModalVisible(true)}
+        >
+          <Text style={styles.bookButtonText}>Ajukan Sewa Kos</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal Form Input Booking */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={bookingModalVisible}
+        onRequestClose={() => setBookingModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Form Pengajuan Sewa</Text>
+            
+            <Text style={styles.inputLabel}>Tanggal Mulai Masuk (Check-In)</Text>
+            <TextInput
+              style={styles.textInput}
+              value={checkInDate}
+              onChangeText={setCheckInDate}
+              placeholder="YYYY-MM-DD"
+            />
+
+            <Text style={styles.inputLabel}>Durasi Sewa (Bulan)</Text>
+            <TextInput
+              style={styles.textInput}
+              value={durationMonths}
+              onChangeText={setDurationMonths}
+              keyboardType="number-pad"
+              placeholder="Contoh: 3"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.cancelBtn} 
+                onPress={() => setBookingModalVisible(false)}
+                disabled={isBookingLoading}
+              >
+                <Text style={styles.cancelBtnText}>Batal</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.confirmBtn} 
+                onPress={handleConfirmBooking}
+                disabled={isBookingLoading}
+              >
+                {isBookingLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Konfirmasi</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -205,7 +288,19 @@ const styles = StyleSheet.create({
   priceValue: { fontSize: 18, fontWeight: 'bold', color: '#222' },
   pricePeriod: { fontSize: 12, fontWeight: '400', color: '#666' },
   bookButton: { backgroundColor: '#1E3A8A', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10 },
+  disabledButton: { backgroundColor: '#9CA3AF' },
   bookButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 },
   backButton: { backgroundColor: '#333', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
-  backButtonText: { color: '#FFF', fontWeight: '600' }
+  backButtonText: { color: '#FFF', fontWeight: '600' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, elevation: 5 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: '#4B5563', marginBottom: 6, marginTop: 10 },
+  textInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, paddingHorizontal: 12, height: 44, fontSize: 14, color: '#1F2937' },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 24 },
+  cancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB' },
+  cancelBtnText: { color: '#4B5563', fontWeight: '600' },
+  confirmBtn: { backgroundColor: '#1E3A8A', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, minWidth: 100, alignItems: 'center', justifyContent: 'center' },
+  confirmBtnText: { color: '#FFF', fontWeight: '600' }
 });
